@@ -5,7 +5,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import ru.practicum.shareit.item.dto.CommentCreateDto;
+import ru.practicum.shareit.item.dto.CommentDto;
 import ru.practicum.shareit.item.dto.ItemDto;
+import ru.practicum.shareit.item.dto.ItemOwnerListDto;
+import ru.practicum.shareit.item.dto.ItemResponseDto;
 import ru.practicum.shareit.item.service.ItemService;
 
 import java.util.List;
@@ -58,24 +62,24 @@ class ItemControllerTest {
 
     @Test
     void getById_returnsItem() {
-        ItemDto response = ItemDto.builder().id(3L).name("Item").build();
-        when(itemService.getItem(3L)).thenReturn(response);
+        ItemResponseDto response = ItemResponseDto.builder().id(3L).name("Item").build();
+        when(itemService.getItem(3L, null)).thenReturn(response);
 
-        ItemDto result = itemController.getById(3L, null);
+        ItemResponseDto result = itemController.getById(3L, null);
 
         assertEquals(response, result);
-        verify(itemService).getItem(3L);
+        verify(itemService).getItem(3L, null);
     }
 
     @Test
     void getOwnerItems_returnsItems() {
-        List<ItemDto> items = List.of(
-                ItemDto.builder().id(1L).name("One").build(),
-                ItemDto.builder().id(2L).name("Two").build()
+        List<ItemOwnerListDto> items = List.of(
+                ItemOwnerListDto.builder().id(1L).name("One").build(),
+                ItemOwnerListDto.builder().id(2L).name("Two").build()
         );
         when(itemService.getItemsByOwner(7L)).thenReturn(items);
 
-        List<ItemDto> result = itemController.getOwnerItems(7L);
+        List<ItemOwnerListDto> result = itemController.getOwnerItems(7L);
 
         assertEquals(items, result);
         verify(itemService).getItemsByOwner(7L);
@@ -90,5 +94,17 @@ class ItemControllerTest {
 
         assertEquals(items, result);
         verify(itemService).searchItems("text");
+    }
+
+    @Test
+    void addComment_callsService() {
+        CommentCreateDto request = CommentCreateDto.builder().text("Nice").build();
+        CommentDto response = CommentDto.builder().id(1L).text("Nice").build();
+        when(itemService.addComment(1L, 2L, request)).thenReturn(response);
+
+        CommentDto result = itemController.addComment(1L, 2L, request);
+
+        assertEquals(response, result);
+        verify(itemService).addComment(1L, 2L, request);
     }
 }

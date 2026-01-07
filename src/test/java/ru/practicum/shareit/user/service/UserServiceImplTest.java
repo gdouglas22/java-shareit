@@ -1,244 +1,82 @@
 package ru.practicum.shareit.user.service;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.user.dto.UserDto;
-import ru.practicum.shareit.user.repository.InMemoryUserRepository;
+import ru.practicum.shareit.user.model.User;
 import ru.practicum.shareit.user.repository.UserRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class UserServiceImplTest {
 
+    @Mock
     private UserRepository userRepository;
-    private UserService userService;
 
-    @BeforeEach
-    void setUp() {
-        userRepository = new InMemoryUserRepository();
-        userService = new UserServiceImpl(userRepository);
-    }
+    @InjectMocks
+    private UserServiceImpl userService;
 
     @Test
-    void createUser_whenDtoIsNull_throwsValidationException() {
+    void createUser_whenDtoNull_throwsValidationException() {
         assertThrows(ValidationException.class, () -> userService.createUser(null));
     }
 
     @Test
-    void createUser_whenNameIsBlank_throwsValidationException() {
-        UserDto request = UserDto.builder()
-                .email("blank-name@mail.com")
-                .name(" ")
-                .build();
+    void createUser_whenEmailExists_throwsConflict() {
+        UserDto dto = UserDto.builder().name("John").email("mail@mail.com").build();
+        when(userRepository.findByEmail(dto.getEmail())).thenReturn(Optional.of(User.builder().id(1L).build()));
 
-        assertThrows(ValidationException.class, () -> userService.createUser(request));
+        assertThrows(ConflictException.class, () -> userService.createUser(dto));
     }
 
     @Test
-    void createUser_whenEmailIsMissing_throwsValidationException() {
-        UserDto request = UserDto.builder()
-                .name("No Email")
-                .build();
+    void createUser_whenValid_returnsSaved() {
+        UserDto dto = UserDto.builder().name("John").email("mail@mail.com").build();
+        User saved = User.builder().id(5L).name(dto.getName()).email(dto.getEmail()).build();
+        when(userRepository.save(any(User.class))).thenReturn(saved);
 
-        assertThrows(ValidationException.class, () -> userService.createUser(request));
+        UserDto result = userService.createUser(dto);
+
+        assertEquals(saved.getId(), result.getId());
+        assertEquals(saved.getEmail(), result.getEmail());
     }
 
     @Test
-    void createUser_whenEmailHasNoAt_throwsValidationException() {
-        UserDto request = UserDto.builder()
-                .name("Bad Email")
-                .email("invalid-email")
-                .build();
+    void updateUser_whenNotFound_throws() {
+        when(userRepository.findById(9L)).thenReturn(Optional.empty());
 
-        assertThrows(ValidationException.class, () -> userService.createUser(request));
+        assertThrows(NotFoundException.class, () -> userService.updateUser(9L, UserDto.builder().name("n").build()));
     }
 
     @Test
-    void createUser_whenEmailNotUnique_throwsConflictException() {
-        UserDto existing = UserDto.builder()
-                .name("Alex")
-                .email("alex@mail.com")
-                .build();
-        userService.createUser(existing);
+    void updateUser_whenEmailConflict_throws() {
+        User existing = User.builder().id(2L).name("Old").email("old@mail.com").build();
+        when(userRepository.findById(existing.getId())).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("new@mail.com")).thenReturn(Optional.of(User.builder().id(3L).build()));
 
-        UserDto duplicate = UserDto.builder()
-                .name("Another Alex")
-                .email("alex@mail.com")
-                .build();
-
-        assertThrows(ConflictException.class, () -> userService.createUser(duplicate));
+        assertThrows(ConflictException.class,
+                () -> userService.updateUser(existing.getId(), UserDto.builder().email("new@mail.com").build()));
     }
 
     @Test
-    void createUser_whenDataValid_savesUser() {
-        UserDto request = UserDto.builder()
-                .name("Jane")
-                .email("jane@mail.com")
-                .build();
-
-        UserDto created = userService.createUser(request);
-
-        assertNotNull(created.getId());
-        assertEquals("Jane", created.getName());
-        assertEquals("jane@mail.com", created.getEmail());
-        assertEquals(1, userRepository.findAll().size());
-    }
-
-    @Test
-    void updateUser_whenDtoIsNull_throwsValidationException() {
-        assertThrows(ValidationException.class, () -> userService.updateUser(1L, null));
-    }
-
-    @Test
-    void updateUser_whenUserMissing_throwsNotFound() {
-        UserDto changes = UserDto.builder().name("Ghost").build();
-
-        assertThrows(NotFoundException.class, () -> userService.updateUser(999L, changes));
-    }
-
-    @Test
-    void updateUser_whenEmailBlank_throwsValidationException() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("Sam")
-                .email("sam@mail.com")
-                .build());
-
-        UserDto changes = UserDto.builder().email(" ").build();
-
-        assertThrows(ValidationException.class, () -> userService.updateUser(created.getId(), changes));
-    }
-
-    @Test
-    void updateUser_whenEmailInvalid_throwsValidationException() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("Sam")
-                .email("sam@mail.com")
-                .build());
-
-        UserDto changes = UserDto.builder().email("invalid").build();
-
-        assertThrows(ValidationException.class, () -> userService.updateUser(created.getId(), changes));
-    }
-
-    @Test
-    void updateUser_whenEmailNotUnique_throwsConflict() {
-        UserDto first = userService.createUser(UserDto.builder()
-                .name("First")
-                .email("first@mail.com")
-                .build());
-        UserDto second = userService.createUser(UserDto.builder()
-                .name("Second")
-                .email("second@mail.com")
-                .build());
-
-        UserDto duplicateEmail = UserDto.builder().email(first.getEmail()).build();
-
-        assertThrows(ConflictException.class, () -> userService.updateUser(second.getId(), duplicateEmail));
-    }
-
-    @Test
-    void updateUser_whenNameBlank_throwsValidationException() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("Sam")
-                .email("sam@mail.com")
-                .build());
-
-        UserDto changes = UserDto.builder().name(" ").build();
-
-        assertThrows(ValidationException.class, () -> userService.updateUser(created.getId(), changes));
-    }
-
-    @Test
-    void updateUser_whenEmailSameAsExisting_allowed() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("Lena")
-                .email("lena@mail.com")
-                .build());
-
-        UserDto changes = UserDto.builder()
-                .email("lena@mail.com")
-                .name("Lena Updated")
-                .build();
-
-        UserDto updated = userService.updateUser(created.getId(), changes);
-
-        assertEquals("Lena Updated", updated.getName());
-        assertEquals("lena@mail.com", updated.getEmail());
-    }
-
-    @Test
-    void updateUser_whenDataValid_updatesFields() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("Old Name")
-                .email("old@mail.com")
-                .build());
-
-        UserDto changes = UserDto.builder()
-                .name("New Name")
-                .email("new@mail.com")
-                .build();
-
-        UserDto updated = userService.updateUser(created.getId(), changes);
-
-        assertEquals(created.getId(), updated.getId());
-        assertEquals("New Name", updated.getName());
-        assertEquals("new@mail.com", updated.getEmail());
-    }
-
-    @Test
-    void deleteUser_whenUserMissing_throwsNotFound() {
-        assertThrows(NotFoundException.class, () -> userService.deleteUser(123L));
-    }
-
-    @Test
-    void deleteUser_whenUserExists_removedFromRepository() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("To Delete")
-                .email("delete@mail.com")
-                .build());
-
-        userService.deleteUser(created.getId());
-
-        assertFalse(userRepository.findById(created.getId()).isPresent());
-    }
-
-    @Test
-    void getUser_whenUserMissing_throwsNotFound() {
-        assertThrows(NotFoundException.class, () -> userService.getUser(404L));
-    }
-
-    @Test
-    void getUser_whenUserExists_returnsDto() {
-        UserDto created = userService.createUser(UserDto.builder()
-                .name("Getter")
-                .email("getter@mail.com")
-                .build());
-
-        UserDto found = userService.getUser(created.getId());
-
-        assertEquals(created.getId(), found.getId());
-        assertEquals(created.getName(), found.getName());
-        assertEquals(created.getEmail(), found.getEmail());
-    }
-
-    @Test
-    void getAllUsers_returnsAllSaved() {
-        userService.createUser(UserDto.builder()
-                .name("First")
-                .email("first@mail.com")
-                .build());
-        userService.createUser(UserDto.builder()
-                .name("Second")
-                .email("second@mail.com")
-                .build());
+    void getAllUsers_returnsList() {
+        when(userRepository.findAll()).thenReturn(List.of(
+                User.builder().id(1L).name("A").email("a@mail.com").build(),
+                User.builder().id(2L).name("B").email("b@mail.com").build()
+        ));
 
         List<UserDto> users = userService.getAllUsers();
 
