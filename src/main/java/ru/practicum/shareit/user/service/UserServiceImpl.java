@@ -3,16 +3,15 @@ package ru.practicum.shareit.user.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.shareit.exception.ConflictException;
 import ru.practicum.shareit.exception.NotFoundException;
 import ru.practicum.shareit.exception.ValidationException;
 import ru.practicum.shareit.user.dto.UserDto;
 import ru.practicum.shareit.user.mapper.UserMapper;
 import ru.practicum.shareit.user.model.User;
 import ru.practicum.shareit.user.repository.UserRepository;
+import ru.practicum.shareit.user.validation.UserValidator;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,6 +20,7 @@ import java.util.stream.Collectors;
 public class UserServiceImpl implements UserService, UserLookupService {
 
     private final UserRepository userRepository;
+    private final UserValidator userValidator;
 
     @Override
     @Transactional
@@ -28,8 +28,8 @@ public class UserServiceImpl implements UserService, UserLookupService {
         if (userDto == null) {
             throw new ValidationException("нужно передать данные пользователя");
         }
-        validateRequiredFields(userDto);
-        ensureEmailUnique(userDto.getEmail(), null);
+        userValidator.validateForCreate(userDto);
+        userValidator.validateEmailUnique(userDto.getEmail(), null);
 
         User user = UserMapper.toUser(userDto);
         user.setId(null);
@@ -44,19 +44,13 @@ public class UserServiceImpl implements UserService, UserLookupService {
             throw new ValidationException("нужно передать данные пользователя");
         }
         User existing = getUserEntity(userId);
+        userValidator.validateForUpdate(userDto);
 
         if (userDto.getEmail() != null) {
-            if (userDto.getEmail().isBlank()) {
-                throw new ValidationException("нужно указать email");
-            }
-            validateEmailFormat(userDto.getEmail());
-            ensureEmailUnique(userDto.getEmail(), userId);
+            userValidator.validateEmailUnique(userDto.getEmail(), userId);
             existing.setEmail(userDto.getEmail());
         }
         if (userDto.getName() != null) {
-            if (userDto.getName().isBlank()) {
-                throw new ValidationException("нужно указать имя");
-            }
             existing.setName(userDto.getName());
         }
 
@@ -87,28 +81,5 @@ public class UserServiceImpl implements UserService, UserLookupService {
     public User getUserEntity(Long userId) {
         return userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("пользователь с id=" + userId + " не найден"));
-    }
-
-    private void validateRequiredFields(UserDto userDto) {
-        if (userDto.getName() == null || userDto.getName().isBlank()) {
-            throw new ValidationException("нужно указать имя");
-        }
-        if (userDto.getEmail() == null || userDto.getEmail().isBlank()) {
-            throw new ValidationException("нужно указать email");
-        }
-        validateEmailFormat(userDto.getEmail());
-    }
-
-    private void ensureEmailUnique(String email, Long currentUserId) {
-        Optional<User> byEmail = userRepository.findByEmail(email);
-        if (byEmail.isPresent() && !byEmail.get().getId().equals(currentUserId)) {
-            throw new ConflictException("такой email уже занят");
-        }
-    }
-
-    private void validateEmailFormat(String email) {
-        if (!email.contains("@")) {
-            throw new ValidationException("email должен содержать '@'");
-        }
     }
 }

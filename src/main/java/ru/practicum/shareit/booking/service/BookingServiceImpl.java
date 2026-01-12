@@ -11,6 +11,7 @@ import ru.practicum.shareit.booking.model.Booking;
 import ru.practicum.shareit.booking.model.BookingState;
 import ru.practicum.shareit.booking.model.BookingStatus;
 import ru.practicum.shareit.booking.policy.BookingAccessPolicy;
+import ru.practicum.shareit.booking.policy.BookingCreationPolicy;
 import ru.practicum.shareit.booking.repository.BookingRepository;
 import ru.practicum.shareit.booking.state.BookingStateResolver;
 import ru.practicum.shareit.booking.state.BookingStateStrategy;
@@ -41,6 +42,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingStateStrategyProvider bookingStateStrategyProvider;
     private final BookingValidator bookingValidator;
     private final BookingAccessPolicy bookingAccessPolicy;
+    private final BookingCreationPolicy bookingCreationPolicy;
 
     @Override
     @Transactional
@@ -53,13 +55,7 @@ public class BookingServiceImpl implements BookingService {
         User booker = userService.getUserEntity(userId);
         Item item = itemRepository.findById(requestDto.getItemId())
                 .orElseThrow(() -> new NotFoundException("вещь с id=" + requestDto.getItemId() + " не найдена"));
-
-        if (item.getOwner() != null && item.getOwner().getId().equals(userId)) {
-            throw new NotFoundException("нельзя бронировать свою вещь");
-        }
-        if (!Boolean.TRUE.equals(item.getAvailable())) {
-            throw new ValidationException("вещь недоступна для бронирования");
-        }
+        bookingCreationPolicy.checkCanBook(userId, item);
 
         Booking booking = BookingMapper.toBooking(requestDto, item, booker, BookingStatus.WAITING);
         Booking saved = bookingRepository.save(booking);
