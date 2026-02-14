@@ -124,4 +124,40 @@ class ItemRequestServiceImplTest {
 
         verify(itemRequestRepository).findByRequestor_IdNot(eq(2L), any(Pageable.class));
     }
+
+    @Test
+    void getOwnRequests_returnsEmptyWhenNoRequests() {
+        when(userService.getUserEntity(2L)).thenReturn(User.builder().id(2L).build());
+        when(itemRequestRepository.findByRequestor_IdOrderByCreatedDesc(2L)).thenReturn(List.of());
+
+        List<ItemRequestResponseDto> response = itemRequestService.getOwnRequests(2L);
+
+        assertEquals(0, response.size());
+    }
+
+    @Test
+    void getById_returnsRequestWithItems() {
+        User requestor = User.builder().id(4L).name("Requester").email("r@mail.com").build();
+        ItemRequest request = ItemRequest.builder()
+                .id(40L)
+                .description("Need ladder")
+                .requestor(requestor)
+                .created(LocalDateTime.of(2026, 2, 14, 10, 0))
+                .build();
+        Item item = Item.builder()
+                .id(41L)
+                .name("Ladder")
+                .owner(User.builder().id(9L).build())
+                .requestId(40L)
+                .build();
+        when(userService.getUserEntity(4L)).thenReturn(requestor);
+        when(itemRequestRepository.findById(40L)).thenReturn(java.util.Optional.of(request));
+        when(itemRepository.findByRequestId(eq(40L), any(Sort.class))).thenReturn(List.of(item));
+
+        ItemRequestResponseDto response = itemRequestService.getById(4L, 40L);
+
+        assertEquals(40L, response.getId());
+        assertEquals(1, response.getItems().size());
+        assertEquals("Ladder", response.getItems().get(0).getName());
+    }
 }
