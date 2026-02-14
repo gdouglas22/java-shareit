@@ -25,7 +25,7 @@ public abstract class BaseClient {
     protected BaseClient(RestTemplateBuilder builder, ObjectMapper objectMapper, String serverUrl) {
         this.restTemplate = builder
                 .uriTemplateHandler(new DefaultUriBuilderFactory(serverUrl))
-                .requestFactory(HttpComponentsClientHttpRequestFactory::new)
+                .requestFactory(HttpComponentsClientHttpRequestFactory.class)
                 .errorHandler(new DefaultResponseErrorHandler())
                 .build();
         this.objectMapper = objectMapper;
